@@ -301,13 +301,13 @@ router.get('/hospitals/:hospital_id/structure', async (req, res) => {
   try {
     const query = `
       SELECT 
-        d.department_id, d.name, d.description,d.phone,
+        d.department_id, d.name, d.description,
         COALESCE(
           json_agg(
             json_build_object(
               'doctor_id', doc.doctor_id,
               'name', doc.name,
-              'phone',doc.phone,
+              'phone', doc.phone,
               'specialization', doc.specialization
             )
           ) FILTER (WHERE doc.doctor_id IS NOT NULL), '[]'
@@ -315,7 +315,7 @@ router.get('/hospitals/:hospital_id/structure', async (req, res) => {
       FROM departments d
       LEFT JOIN doctors doc ON d.department_id = doc.department_id
       WHERE d.hospital_id = $1
-      GROUP BY d.department_id;
+      GROUP BY d.department_id, d.name, d.description;
     `;
 
     const { rows } = await pool.query(query, [hospital_id]);
@@ -325,7 +325,7 @@ router.get('/hospitals/:hospital_id/structure', async (req, res) => {
     return res.status(500).json({ message: "Failed to fetch structure" });
   }
 });
-
+    
 // ------------------------------------------
 // 5. MANAGEMENT (DEPARTMENTS, DOCTORS, APPOINTMENTS)
 // ------------------------------------------
