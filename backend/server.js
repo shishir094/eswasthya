@@ -10,10 +10,23 @@ import makeDatabase from './routes/admin.js'
 dotenv.config();
 const app = express();
 
+const allowedOrigins = [
+  process.env.USER_FRONTEND_URL,
+  process.env.ADMIN_FRONTEND_URL,
+  process.env.HOSPITAL_FRONTEND_URL
+].filter(Boolean); // Filters out any undefined values
+
 app.use(cors({
-    origin:process.env.CLIENT_URL,
-    credentials:true,
-})); 
+  origin: function (origin, callback) {
+    // Allow tools like Postman or mobile apps with no origin
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(new Error('Blocked by CORS policy'));
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
 
 app.use(express.json());
 app.use(cookieParser());
