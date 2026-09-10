@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import Dashboard from './Dashboard.jsx'
 
 const Login = () => {
   const navigate = useNavigate();
@@ -21,7 +20,7 @@ const Login = () => {
     axios.post('https://health-access-system-2.onrender.com/api/admin/login', credentials, { withCredentials: true })
       .then((response) => {
         alert("Login successful!");
-        navigate('/AdminDashboard');
+        navigate('/dashboard');
       })
       .catch((error) => {
         alert(error.response?.data?.message || 'Invalid email or password.');
