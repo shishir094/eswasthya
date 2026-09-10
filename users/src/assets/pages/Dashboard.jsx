@@ -105,7 +105,7 @@ const Dashboard = () => {
     setLoadingAppointments(true);
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/appointments/user/${userId}`,
+        `https://health-access-system-2.onrender.com/api/appointments/user/${userId}`,
         { headers: getAuthHeader() }
       );
       setUserAppointments(res.data || []);
@@ -123,7 +123,7 @@ const Dashboard = () => {
     }
     setLoadingSlots(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/appointments/slot-counts', {
+      const res = await axios.get('https://health-access-system-2.onrender.com/api/appointments/slot-counts', {
         params: { hospital_id: hospitalId, department_id: departmentId, date },
         headers: getAuthHeader(),
       });
@@ -151,7 +151,7 @@ const Dashboard = () => {
       setSearchParams({});
 
       axios
-        .get('http://localhost:5000/api/auth/me', {
+        .get('https://health-access-system-2.onrender.com/api/auth/me', {
           headers: getAuthHeader(),
           withCredentials: true,
         })
@@ -173,7 +173,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     axios
-      .get('http://localhost:5000/api/auth/me', {
+      .get('https://health-access-system-2.onrender.com/api/auth/me', {
         headers: getAuthHeader(),
         withCredentials: true,
       })
@@ -192,7 +192,7 @@ const Dashboard = () => {
 
   const fetchHospitals = () => {
     axios
-      .get('http://localhost:5000/api/list')
+      .get('https://health-access-system-2.onrender.com/api/list')
       .then((res) => setHospitals(res.data || []))
       .catch((err) => console.error(err));
   };
@@ -213,7 +213,7 @@ const Dashboard = () => {
 
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/hospitals/${hospital.hospital_id}/structure`
+        `https://health-access-system-2.onrender.com/api/hospitals/${hospital.hospital_id}/structure`
       );
       setDepartments(res.data.departments || []);
     } catch (err) {
@@ -280,7 +280,7 @@ const Dashboard = () => {
       };
 
       const res = await axios.post(
-        'http://localhost:5000/api/appointments',
+        'https://health-access-system-2.onrender.com/api/appointments',
         payload,
         { headers: getAuthHeader() }
       );

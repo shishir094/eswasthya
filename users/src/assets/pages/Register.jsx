@@ -65,7 +65,7 @@ const Register = () => {
     }
     try {
       setLoading(true);
-      const res = await axios.post('http://localhost:5000/api/auth/send-otp', { email: formData.email });
+      const res = await axios.post('https://health-access-system-2.onrender.com/api/auth/send-otp', { email: formData.email });
       setOtpToken(res.data.token);
       setIsOtpSent(true);
       alert('Verification code sent to your email.');
@@ -84,7 +84,7 @@ const Register = () => {
     }
     try {
       setLoading(true);
-      await axios.post('http://localhost:5000/api/auth/verify-otp', { otp, token: otpToken });
+      await axios.post('https://health-access-system-2.onrender.com/api/auth/verify-otp', { otp, token: otpToken });
       setIsEmailVerified(true);
       alert('Email verified successfully!');
     } catch (error) {
@@ -137,7 +137,7 @@ const Register = () => {
 
     try {
       setLoading(true);
-      const response = await axios.post('http://localhost:5000/api/auth/register', payload, {
+      const response = await axios.post('https://health-access-system-2.onrender.com/api/auth/register', payload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       alert(response.data?.message || 'Registration successful!');

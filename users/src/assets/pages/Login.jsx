@@ -17,7 +17,7 @@ const Login = () => {
     e.preventDefault();
 
     // withCredentials: true ensures the auth cookie is saved in the browser
-    axios.post('http://localhost:5000/api/auth/login', credentials, { withCredentials: true })
+    axios.post('https://health-access-system-2.onrender.com/api/auth/login', credentials, { withCredentials: true })
       .then((response) => {
         alert("Login successful!");
         navigate('/dashboard');

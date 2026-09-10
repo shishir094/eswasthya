@@ -144,7 +144,7 @@ const HospitalForm = () => {
 
     setOtpLoading(true);
     try {
-      const res = await axios.post('http://localhost:5000/api/send-otp', { email: formData.email });
+      const res = await axios.post('https://health-access-system-2.onrender.com/api/send-otp', { email: formData.email });
       alert(res.data?.message || "OTP sent to your email address.");
       setIsOtpSent(true);
     } catch (err) {
@@ -162,7 +162,7 @@ const HospitalForm = () => {
 
     setOtpLoading(true);
     try {
-      const res = await axios.post('http://localhost:5000/api/verify-otp', { email: formData.email, otp });
+      const res = await axios.post('https://health-access-system-2.onrender.com/api/verify-otp', { email: formData.email, otp });
       if (res.data?.verified || res.status === 200) {
         setIsEmailVerified(true);
         setErrors((prev) => ({ ...prev, email: null }));
@@ -194,7 +194,7 @@ const HospitalForm = () => {
     try {
       setSubmitting(true);
       const response = await axios.post(
-        'http://localhost:5000/api/register', 
+        'https://health-access-system-2.onrender.com/api/register', 
         dataPayload, 
         { withCredentials: true }
       );

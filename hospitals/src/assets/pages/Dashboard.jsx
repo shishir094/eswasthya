@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 // Centralized Axios Instance
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: 'https://health-access-system-2.onrender.com/api',
   withCredentials: true,
 });
 
