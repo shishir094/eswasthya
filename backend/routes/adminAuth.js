@@ -7,8 +7,9 @@ const router = express.Router();
 
 const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production' || true,
+    secure: true,      // Required for HTTPS (Render)
+    sameSite: 'none',
     maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
 };
 
@@ -38,7 +39,11 @@ router.post('/login', async (req, res) => {
       { expiresIn: '8h' }
     );
 
-    res.cookie('admin_token', token, { httpOnly: true, sameSite: 'lax' });
+    res.cookie('admin_token', token, { 
+      httpOnly: true,
+  secure: true,  
+  sameSite: 'none'
+     });
     res.json({ message: 'Admin login successful' });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
