@@ -50,7 +50,7 @@ const Dashboard = () => {
   const handleLogout = async () => {
     try {
       await axios.post(`${API_BASE_URL}/admin/logout`, {}, { withCredentials: true });
-      navigate('/admin');
+      navigate('/');
     } catch (err) {
       alert(err.response?.data?.message || 'Error logging out. Please try again.');
     }
