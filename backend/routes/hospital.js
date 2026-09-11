@@ -9,6 +9,7 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import nodemailer from 'nodemailer';
 import pool from '../config/db.js';
+import { Resend } from 'resend';
 
 const router = express.Router();
 
@@ -55,16 +56,8 @@ const uploadToCloudinary = (fileBuffer, originalName) => {
   });
 };
 
-// Configure Nodemailer
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // Must be false for port 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // In-Memory OTP Store
 const otpStore = new Map();
@@ -95,22 +88,39 @@ router.post('/send-otp', async (req, res) => {
   if (!email) return res.status(400).json({ message: "Email is required" });
 
   try {
+    const existingCheck = await pool.query(
+      'SELECT email FROM hospital_db WHERE email = $1 LIMIT 1',
+      [email]
+    );
+
+    if (existingCheck.rows.length > 0) {
+      return res.status(400).json({ message: "This email is already registered." });
+    }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
     otpStore.set(email, { otp, expiresAt });
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
+    // Send email via Resend's secure HTTPS API
+    await resend.emails.send({
+      from: 'Health Access System <onboarding@resend.dev>', // Resend's default test sender domain
+      to: [email],
       subject: "Hospital Verification OTP Code",
-      html: `<h3>Your OTP code for registration verification is: <b>${otp}</b></h3><p>Valid for 10 minutes.</p>`
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2>Hospital Verification</h2>
+          <p>Your OTP code for registration verification is:</p>
+          <h1 style="color: #2563eb; letter-spacing: 2px;">${otp}</h1>
+          <p>This code is valid for <strong>10 minutes</strong>.</p>
+        </div>
+      `
     });
 
     return res.json({ message: "OTP sent successfully to email" });
   } catch (error) {
-    console.error("OTP Error:", error);
-    return res.status(500).json({ message: "Failed to send OTP" });
+    console.error("Resend OTP Error:", error);
+    return res.status(500).json({ message: "Failed to send OTP", error: error.message });
   }
 });
 
@@ -482,8 +492,8 @@ router.post('/appointments', async (req, res) => {
       product_code: productCode,
       product_service_charge: "0",
       product_delivery_charge: "0",
-      success_url: "http://localhost:5000/api/esewa/success",
-      failure_url: "http://localhost:5000/api/esewa/failure",
+      success_url: "https://health-access-system-2.onrender.com/api/esewa/success",
+      failure_url: "https://health-access-system-2.onrender.com/api/esewa/failure",
       signed_field_names: "total_amount,transaction_uuid,product_code",
       signature
     };
