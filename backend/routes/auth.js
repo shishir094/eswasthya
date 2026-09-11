@@ -5,13 +5,17 @@ import pool from '../config/db.js';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
-import nodemailer from 'nodemailer';
+import { BrevoClient } from '@getbrevo/brevo';
 import { protect } from '../middleware/auth.js';
 
 dotenv.config();
 
 const router = express.Router();
 
+// Initialize Brevo client
+const brevo = new BrevoClient({
+  apiKey: process.env.BREVO_API_KEY,
+});
 // 1. Cloudinary Configuration
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -71,20 +75,19 @@ router.post('/send-otp', async (req, res) => {
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
 
-    // Save temporary OTP in session or a dedicated table/cache. 
-    // Here we store it temporarily in a temporary table or send direct validation tokens.
-    // For simplicity, we send the OTP back encrypted or manage temp store in DB:
-    
-    await transporter.sendMail({
-      from: `"Verification Team" <${process.env.EMAIL_USER}>`,
-      to: email,
+    // Send via Brevo HTTPS API (bypasses Render SMTP port blocks)
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { 
+        name: "Health Access System", 
+        email: process.env.BREVO_SENDER_EMAIL || "YOUR_BREVO_SIGNUP_GMAIL@gmail.com" // Must match your Brevo account email
+      },
+      to: [{ email: email }],
       subject: 'Your Registration Verification Code',
-      html: `<h3>Your Verification Code is: <b>${otp}</b></h3><p>Valid for 10 minutes.</p>`
+      htmlContent: `<h3>Your Verification Code is: <b>${otp}</b></h3><p>Valid for 10 minutes.</p>`
     });
 
-    // Hash OTP before sending response indicator or save in temporary store
+    // Hash OTP to send back as a verification token for the client
     const hashedOtp = await bcrypt.hash(otp, 10);
 
     return res.status(200).json({ 
@@ -111,9 +114,8 @@ router.post('/verify-otp', async (req, res) => {
     return res.status(400).json({ message: 'Invalid verification code' });
   }
 
-  return res.status(200).json({ message: 'Email verified successfully!' });
+  return res.status(200).json({ success: true, verified: true, message: 'Email verified successfully!' });
 });
-
 // ==========================================
 // API 3: REGISTER USER (WITH IMAGE & OTP VERIFIED)
 // ==========================================
