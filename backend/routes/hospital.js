@@ -9,12 +9,13 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import nodemailer from 'nodemailer';
 import pool from '../config/db.js';
-import * as SibApiV3Sdk from '@getbrevo/brevo';
+import { BrevoClient } from '@getbrevo/brevo';
 
 const router = express.Router();
 
-const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
-apiInstance.setApiKey(SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+const brevo = new BrevoClient({
+  apiKey: process.env.BREVO_API_KEY,
+});
 // ------------------------------------------
 // 1. SERVICES & CONFIGURATIONS
 // ------------------------------------------
@@ -88,15 +89,37 @@ router.post('/send-otp', async (req, res) => {
   if (!email) return res.status(400).json({ message: "Email is required" });
 
   try {
-    // ... your database checks and OTP generation code ...
+    const existingCheck = await pool.query(
+      'SELECT email FROM hospital_db WHERE email = $1 LIMIT 1',
+      [email]
+    );
 
-    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-    sendSmtpEmail.subject = "Hospital Verification OTP Code";
-    sendSmtpEmail.htmlContent = `<h3>Your OTP code is: <b>${otp}</b></h3>`;
-    sendSmtpEmail.sender = { name: "Health Access", email: "ritushishir04@gmail.com" };
-    sendSmtpEmail.to = [{ email: email }];
+    if (existingCheck.rows.length > 0) {
+      return res.status(400).json({ message: "This email is already registered." });
+    }
 
-    await apiInstance.sendTransacEmail(sendSmtpEmail);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+
+    otpStore.set(email, { otp, expiresAt });
+
+    // Send email using Brevo's modern client
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { 
+        name: "Health Access System", 
+        email: "ritushishir04@gmail.com" // Must match your Brevo account email
+      },
+      to: [{ email: email }],
+      subject: "Hospital Verification OTP Code",
+      htmlContent: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2>Hospital Verification</h2>
+          <p>Your OTP code for registration verification is:</p>
+          <h1 style="color: #2563eb; letter-spacing: 2px;">${otp}</h1>
+          <p>This code is valid for <strong>10 minutes</strong>.</p>
+        </div>
+      `
+    });
 
     return res.json({ message: "OTP sent successfully to email" });
   } catch (error) {
@@ -104,6 +127,8 @@ router.post('/send-otp', async (req, res) => {
     return res.status(500).json({ message: "Failed to send OTP", error: error.message });
   }
 });
+
+
 router.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   if (!email || !otp) return res.status(400).json({ message: "Email and OTP are required" });
