@@ -16,9 +16,7 @@ const router = express.Router();
 const brevo = new BrevoClient({
   apiKey: process.env.BREVO_API_KEY,
 });
-// ------------------------------------------
-// 1. SERVICES & CONFIGURATIONS
-// ------------------------------------------
+
 
 // Configure Cloudinary
 cloudinary.config({
