@@ -84,7 +84,7 @@ const Register = () => {
     }
     try {
       setLoading(true);
-      await axios.post('https://health-access-system-2.onrender.com/api/auth/verify-otp', { otp, token: otpToken });
+      await axios.post('https://health-access-system-2.onrender.com/api/auth/verify-otp', { email: formData.email, otp  });
       setIsEmailVerified(true);
       alert('Email verified successfully!');
     } catch (error) {

@@ -59,62 +59,69 @@ const generateToken = (id) => {
 // ==========================================
 router.post('/send-otp', async (req, res) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ message: 'Email is required' });
+  if (!email) return res.status(400).json({ message: "Email is required" });
 
   try {
-    const userExists = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (userExists.rows.length > 0) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+    const existingCheck = await pool.query(
+      'SELECT email FROM users WHERE email = $1 LIMIT 1',
+      [email]
+    );
+
+    if (existingCheck.rows.length > 0) {
+      return res.status(400).json({ message: "This email is already registered." });
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 10 * 60 * 1000;
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+
     otpStore.set(email, { otp, expiresAt });
-    // Send via Brevo HTTPS API (bypasses Render SMTP port blocks)
+
+    // Send email using Brevo's modern client
     await brevo.transactionalEmails.sendTransacEmail({
       sender: { 
         name: "Health Access System", 
-        email: "ritushishir04@gmail.com@gmail.com" // Must match your Brevo account email
+        email: "ritushishir04@gmail.com" // Must match your Brevo account email
       },
       to: [{ email: email }],
-      subject: 'Your Registration Verification Code',
-      htmlContent: `<h3>Your Verification Code is: <b>${otp}</b></h3><p>Valid for 10 minutes.</p>`
+      subject: "User Verification OTP Code",
+      htmlContent: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2>Hospital Verification</h2>
+          <p>Your OTP code for registration verification is:</p>
+          <h1 style="color: #2563eb; letter-spacing: 2px;">${otp}</h1>
+          <p>This code is valid for <strong>10 minutes</strong>.</p>
+        </div>
+      `
     });
 
-    // Hash OTP to send back as a verification token for the client
-    const hashedOtp = await bcrypt.hash(otp, 10);
-
-    return res.status(200).json({ 
-      message: 'OTP sent successfully to email', 
-      token: hashedOtp // Sent back to verify on client
-    });
+    return res.json({ message: "OTP sent successfully to email" });
   } catch (error) {
-    console.error('Send OTP Error:', error);
-    return res.status(500).json({ message: 'Failed to send OTP email', error: error.message });
+    console.error("Brevo OTP Error:", error);
+    return res.status(500).json({ message: "Failed to send OTP", error: error.message });
   }
 });
 
-// ==========================================
-// API 2: VERIFY OTP
-// ==========================================
-router.post('/verify-otp', async (req, res) => {
-  const { otp, token } = req.body;
-  if (!otp || !token) {
-    return res.status(400).json({ message: 'OTP and verification token are required' });
-  }
-const record = otpStore.get(email);
-  const isValid = await bcrypt.compare(otp, token);
-  if (!isValid) {
-    return res.status(400).json({ message: 'Invalid verification code' });
-  }
+
+router.post('/verify-otp', (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ message: "Email and OTP are required" });
+
+  const record = otpStore.get(email);
+  if (!record) return res.status(400).json({ message: "No OTP request found for this email" });
+
   if (Date.now() > record.expiresAt) {
     otpStore.delete(email);
     return res.status(400).json({ message: "OTP has expired" });
   }
 
-  return res.status(200).json({ success: true, verified: true, message: 'Email verified successfully!' });
+  if (record.otp !== otp) {
+    return res.status(400).json({ message: "Invalid OTP code" });
+  }
+
+  otpStore.delete(email);
+  return res.json({ message: "Email verified successfully", verified: true });
 });
+
 // ==========================================
 // API 3: REGISTER USER (WITH IMAGE & OTP VERIFIED)
 // ==========================================
