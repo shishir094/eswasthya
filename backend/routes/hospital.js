@@ -517,7 +517,7 @@ router.post('/appointments', async (req, res) => {
 // eSewa Callbacks
 router.get('/esewa/success', async (req, res) => {
   const { data } = req.query;
-  if (!data) return res.redirect('https://health-access-system-2.onrender.com/dashboard?payment=failed');
+  if (!data) return res.redirect('https://has-users.vercel.app/dashboard?payment=failed');
 
   try {
     const decodedData = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
@@ -533,7 +533,7 @@ router.get('/esewa/success', async (req, res) => {
         [refId, transaction_uuid]
       );
 
-      return res.redirect('https://health-access-system-2.onrender.com/dashboard?payment=success');
+      return res.redirect('https://has-users.vercel.app/dashboard?payment=success');
     } else {
       await pool.query(
         `UPDATE appointments 
