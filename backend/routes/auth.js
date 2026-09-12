@@ -11,7 +11,7 @@ import { protect } from '../middleware/auth.js';
 dotenv.config();
 
 const router = express.Router();
-
+const otpStore = new Map();
 // Initialize Brevo client
 const brevo = new BrevoClient({
   apiKey: process.env.BREVO_API_KEY,
@@ -69,7 +69,8 @@ router.post('/send-otp', async (req, res) => {
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    otpStore.set(email, { otp, expiresAt });
     // Send via Brevo HTTPS API (bypasses Render SMTP port blocks)
     await brevo.transactionalEmails.sendTransacEmail({
       sender: { 
@@ -106,6 +107,10 @@ router.post('/verify-otp', async (req, res) => {
   const isValid = await bcrypt.compare(otp, token);
   if (!isValid) {
     return res.status(400).json({ message: 'Invalid verification code' });
+  }
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(email);
+    return res.status(400).json({ message: "OTP has expired" });
   }
 
   return res.status(200).json({ success: true, verified: true, message: 'Email verified successfully!' });

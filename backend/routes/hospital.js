@@ -517,7 +517,7 @@ router.post('/appointments', async (req, res) => {
 // eSewa Callbacks
 router.get('/esewa/success', async (req, res) => {
   const { data } = req.query;
-  if (!data) return res.redirect('http://localhost:5173/dashboard?payment=failed');
+  if (!data) return res.redirect('https://health-access-system-2.onrender.com/dashboard?payment=failed');
 
   try {
     const decodedData = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
@@ -533,7 +533,7 @@ router.get('/esewa/success', async (req, res) => {
         [refId, transaction_uuid]
       );
 
-      return res.redirect('http://localhost:5173/dashboard?payment=success');
+      return res.redirect('https://health-access-system-2.onrender.com/dashboard?payment=success');
     } else {
       await pool.query(
         `UPDATE appointments 
@@ -543,10 +543,10 @@ router.get('/esewa/success', async (req, res) => {
       );
     }
 
-    return res.redirect('http://localhost:5173/dashboard?payment=failed');
+    return res.redirect('https://health-access-system-2.onrender.com/dashboard?payment=failed');
   } catch (err) {
     console.error("eSewa Callback Verification Error:", err);
-    return res.redirect('http://localhost:5173/dashboard?payment=failed');
+    return res.redirect('https://health-access-system-2.onrender.com/dashboard?payment=failed');
   }
 });
 
@@ -565,7 +565,7 @@ router.get('/esewa/failure', async (req, res) => {
       console.error("Failure cleanup error:", e);
     }
   }
-  return res.redirect('http://localhost:5173/dashboard?payment=cancelled');
+  return res.redirect('https://health-access-system-2.onrender.com/dashboard?payment=cancelled');
 });
 
 // User Appointments Endpoint
