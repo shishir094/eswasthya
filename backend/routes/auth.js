@@ -75,7 +75,7 @@ router.post('/send-otp', async (req, res) => {
     await brevo.transactionalEmails.sendTransacEmail({
       sender: { 
         name: "Health Access System", 
-        email: process.env.BREVO_SENDER_EMAIL || "YOUR_BREVO_SIGNUP_GMAIL@gmail.com" // Must match your Brevo account email
+        email: "ritushishir04@gmail.com@gmail.com" // Must match your Brevo account email
       },
       to: [{ email: email }],
       subject: 'Your Registration Verification Code',
@@ -103,7 +103,7 @@ router.post('/verify-otp', async (req, res) => {
   if (!otp || !token) {
     return res.status(400).json({ message: 'OTP and verification token are required' });
   }
-
+const record = otpStore.get(email);
   const isValid = await bcrypt.compare(otp, token);
   if (!isValid) {
     return res.status(400).json({ message: 'Invalid verification code' });
