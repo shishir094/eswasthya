@@ -289,7 +289,7 @@ router.get('/list', async (req, res) => {
       SELECT 
         h.hospital_id, h.name, h.email, h.phone, h.emergency_contact, 
         h.province, h.district, h.municipality, h.hospital_type, 
-        h.hospital_bed_capacity, h.document_url,
+        h.hospital_bed_capacity, h.document_url, h.is_approved, -- Added is_approved here
         COALESCE(
           json_agg(
             json_build_object(
