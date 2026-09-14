@@ -94,22 +94,37 @@ const Dashboard = () => {
     }
   }, []);
 
-  useEffect(() => {
-  api.get('/me')
-    .then((res) => {
-      // Fallback if the backend sends res.data directly or nested under res.data.user
+  // Poll profile state so approval updates instantly without hard refreshing or logging out
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await api.get('/me');
       const userHospital = res.data.user || res.data;
       setHospital(userHospital);
       if (userHospital?.hospital_id) {
         fetchStructure(userHospital.hospital_id);
         fetchAppointments();
       }
-    })
-    .catch((err) => {
-      console.error("Failed to load /me profile", err);
-      navigate('/');
-    });
-}, [navigate, fetchStructure, fetchAppointments]);
+    } catch (err) {
+      console.error('Failed to load profile', err);
+    }
+  }, [fetchStructure, fetchAppointments]);
+
+  useEffect(() => {
+    api.get('/me')
+      .then((res) => {
+        const userHospital = res.data.user || res.data;
+        setHospital(userHospital);
+        if (userHospital?.hospital_id) {
+          fetchStructure(userHospital.hospital_id);
+          fetchAppointments();
+        }
+      })
+      .catch(() => navigate('/'));
+
+    // Poll every 5 seconds to sync approval status instantly when admin clicks approve
+    const interval = setInterval(fetchProfile, 5000);
+    return () => clearInterval(interval);
+  }, [navigate, fetchStructure, fetchAppointments, fetchProfile]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -132,9 +147,23 @@ const Dashboard = () => {
     }
   };
 
+  // Bulletproof approval evaluation handling booleans, numbers, and strings
+  const isApproved = useMemo(() => {
+    if (!hospital) return false;
+    const val = hospital.is_approved;
+    return (
+      val === true ||
+      val === 1 ||
+      val === '1' ||
+      val === 'true' ||
+      val === 't' ||
+      hospital.status === 'approved'
+    );
+  }, [hospital]);
+
   const handleAddDepartment = async (e) => {
     e.preventDefault();
-    if (!hospital?.is_approved) {
+    if (!isApproved) {
       setFeedback({ type: 'error', message: 'Account pending approval. You cannot add departments yet.' });
       return;
     }
@@ -158,7 +187,7 @@ const Dashboard = () => {
 
   const handleAddDoctor = async (e) => {
     e.preventDefault();
-    if (!hospital?.is_approved) {
+    if (!isApproved) {
       setFeedback({ type: 'error', message: 'Account pending approval. You cannot register doctors yet.' });
       return;
     }
@@ -270,8 +299,6 @@ const Dashboard = () => {
       </div>
     );
   }
-
-  const isApproved = hospital.is_approved === true || hospital.is_approved === 1 || hospital.status === 'approved';
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-8 font-sans">
@@ -756,5 +783,4 @@ const Dashboard = () => {
   );
 };
 
-exports.Dashboard = Dashboard;
 export default Dashboard;
