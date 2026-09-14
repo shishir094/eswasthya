@@ -313,9 +313,25 @@ router.get('/list', async (req, res) => {
   }
 });
 
+
 router.get('/hospitals/:hospital_id/structure', async (req, res) => {
   const { hospital_id } = req.params;
   try {
+    // 1. Verify the hospital exists and is approved
+    const hospitalCheck = await pool.query(
+      'SELECT is_approved FROM hospital_db WHERE hospital_id = $1',
+      [hospital_id]
+    );
+
+    if (hospitalCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+
+    if (!hospitalCheck.rows[0].is_approved) {
+      return res.status(403).json({ message: 'Hospital is pending approval by admin' });
+    }
+
+    // 2. Fetch structure if approved
     const query = `
       SELECT 
         d.department_id, d.name, d.description,
