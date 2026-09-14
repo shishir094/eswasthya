@@ -8,16 +8,29 @@ import pool from '../config/db.js';
  * @param {String} action - The action type
  * @param {String} comments - Notes or reasons
  */
-const logAudit = async (adminId, targetId, targetType, action, comments = null) => {
-    try {
-        const query = `
-            INSERT INTO audit_logs (admin_id, target_id, target_type, action, comments)
-            VALUES ($1, $2, $3, $4, $5)
-        `;
-        await pool.query(query, [adminId, targetId, targetType, action, comments]);
-    } catch (error) {
-        console.error('Failed to write audit log:', error);
-    }
+const getAuditLogs = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        al.id, 
+        al.created_at AS timestamp, 
+        COALESCE(a.name, a.email, 'Admin #' || al.admin_id) AS officer,
+        al.target_type, 
+        CAST(al.target_id AS TEXT) AS target_identifier, 
+        al.action, 
+        al.comments
+      FROM audit_logs al
+      LEFT JOIN admin a ON al.admin_id = a.id
+      ORDER BY al.created_at DESC
+      LIMIT 100;
+    `;
+    
+    const result = await pool.query(query);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    res.status(500).json({ message: 'Server error while fetching audit logs.' });
+  }
 };
 
 export default logAudit
