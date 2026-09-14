@@ -8,7 +8,7 @@ import pool from '../config/db.js';
  * @param {String} action - The action type
  * @param {String} comments - Notes or reasons
  */
-const getAuditLogs = async (req, res) => {
+const logAudit = async (req, res) => {
   try {
     const query = `
       SELECT 
