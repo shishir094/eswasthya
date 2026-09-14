@@ -189,7 +189,8 @@ const Dashboard = () => {
     if (!hospitalId) return alert('Invalid Hospital ID');
     setActionLoading(`hosp-${hospitalId}`);
     try {
-      await axios.patch(`${API_BASE_URL}/hospitals/${hospitalId}/approve`, {}, { withCredentials: true });
+      // Add /admin/ prefix to match your admin router structure
+      await axios.patch(`${API_BASE_URL}/admin/hospitals/${hospitalId}/approve`, {}, { withCredentials: true });
       setHospitals((prev) =>
         prev.map((h) => (getItemId(h, 'hospital') === hospitalId ? { ...h, is_approved: 1, isApproved: true, status: 'approved' } : h))
       );
@@ -199,6 +200,7 @@ const Dashboard = () => {
       setActionLoading(null);
     }
   };
+   
 
   // Open Rejection Modal
   const openRejectModal = (item, type) => {

@@ -70,6 +70,30 @@ router.get('/users', async (req, res) => {
   }
 });
 
+// Approve Hospital
+router.patch('/hospitals/:id/approve', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const updatedHospital = await pool.query(
+      'UPDATE hospital_db SET is_approved = TRUE WHERE hospital_id = $1 RETURNING hospital_id, name, email, is_approved',
+      [id]
+    );
+
+    if (updatedHospital.rows.length === 0) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+
+    res.json({
+      message: 'Hospital approved successfully',
+      hospital: updatedHospital.rows[0],
+    });
+  } catch (err) {
+    console.error('Approve Hospital Error:', err);
+    res.status(500).json({ message: 'Failed to approve hospital', error: err.message });
+  }
+});
+
 // Approve user
 router.patch('/users/:id/approve', async (req, res) => {
   const { id } = req.params;
