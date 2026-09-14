@@ -263,7 +263,7 @@ router.get('/me', verifyHospital, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT hospital_id, name, license_number, email, hospital_type, 
               hospital_bed_capacity, province, district, municipality, 
-              phone, emergency_contact, document_url 
+              phone, emergency_contact, document_url, is_approved 
        FROM hospital_db WHERE hospital_id = $1 LIMIT 1`,
       [req.hospital.id]
     );
