@@ -223,10 +223,13 @@ router.post('/register', upload.single('document_url'), async (req, res) => {
     if (cloudinaryPublicId) {
       await cloudinary.uploader.destroy(cloudinaryPublicId);
     }
-    console.error("Registration Error:", error);
-    return res.status(500).json({ message: "Server error during registration", error: error.message });
+    console.error("Detailed Registration Error:", error);
+    return res.status(500).json({ 
+      message: "Server error during registration", 
+      error: error.message, 
+      detail: error.detail // <-- This will show the exact Postgres crash reason
+    });
   }
-});
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
