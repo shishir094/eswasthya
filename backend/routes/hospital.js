@@ -10,7 +10,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import nodemailer from 'nodemailer';
 import pool from '../config/db.js';
 import { BrevoClient } from '@getbrevo/brevo';
-
+import logAudit from './audit.js'
 const router = express.Router();
 
 const brevo = new BrevoClient({

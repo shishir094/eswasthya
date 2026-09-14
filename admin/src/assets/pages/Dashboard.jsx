@@ -30,6 +30,11 @@ const Dashboard = () => {
   const [rejectTarget, setRejectTarget] = useState(null); // { id, type: 'user' | 'hospital', name }
   const [rejectMessage, setRejectMessage] = useState('');
 
+  // Audit Logs Modal State
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
   const fetchAllData = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -51,6 +56,20 @@ const Dashboard = () => {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // Fetch Audit Logs when modal opens
+  const fetchAuditLogs = async () => {
+    setAuditModalOpen(true);
+    setAuditLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/admin/audit-logs`, { withCredentials: true });
+      setAuditLogs(res.data || []);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to fetch audit logs.');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -189,7 +208,6 @@ const Dashboard = () => {
     if (!hospitalId) return alert('Invalid Hospital ID');
     setActionLoading(`hosp-${hospitalId}`);
     try {
-      // Add /admin/ prefix to match your admin router structure
       await axios.patch(`${API_BASE_URL}/admin/hospitals/${hospitalId}/approve`, {}, { withCredentials: true });
       setHospitals((prev) =>
         prev.map((h) => (getItemId(h, 'hospital') === hospitalId ? { ...h, is_approved: 1, isApproved: true, status: 'approved' } : h))
@@ -200,7 +218,6 @@ const Dashboard = () => {
       setActionLoading(null);
     }
   };
-   
 
   // Open Rejection Modal
   const openRejectModal = (item, type) => {
@@ -274,9 +291,20 @@ const Dashboard = () => {
             <h1 className="text-xl font-bold">Admin Portal</h1>
             <p className="text-xs text-slate-400">Manage user and hospital verification requests</p>
           </div>
-          <button onClick={handleLogout} className="cursor-pointer px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition">
-            Logout
-          </button>
+          <div className="flex items-center space-x-3">
+            <button 
+              onClick={fetchAuditLogs} 
+              className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 rounded-lg text-xs font-semibold transition"
+            >
+              View Audit Logs
+            </button>
+            <button 
+              onClick={handleLogout} 
+              className="cursor-pointer px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition"
+            >
+              Logout
+            </button>
+          </div>
         </header>
 
         {/* Metrics */}
@@ -467,6 +495,82 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Audit Logs Modal */}
+      {auditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-800 bg-slate-900/90">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100">System Audit Trail</h3>
+                <p className="text-[11px] text-slate-400">Chronological history of admin actions, approvals, and rejections</p>
+              </div>
+              <button onClick={() => setAuditModalOpen(false)} className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer">
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-auto flex-grow">
+              {auditLoading ? (
+                <div className="text-center py-12 text-slate-400 text-xs animate-pulse">Loading audit logs...</div>
+              ) : auditLogs.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-xs">No audit logs recorded yet.</div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-semibold uppercase tracking-wider">
+                        <th className="p-3">Timestamp</th>
+                        <th className="p-3">Officer</th>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Target</th>
+                        <th className="p-3">Action</th>
+                        <th className="p-3">Comments / Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {auditLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-slate-800/30 transition">
+                          <td className="p-3 text-slate-400 whitespace-nowrap text-[11px]">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </td>
+                          <td className="p-3 font-medium text-slate-200 whitespace-nowrap">
+                            {log.officer}
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              log.target_type === 'USER' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            }`}>
+                              {log.target_type}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-300 whitespace-nowrap">
+                            {log.target_identifier}
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            <span className={`px-2 py-1 rounded text-[10px] font-semibold ${
+                              log.action?.includes('APPROVE') 
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                : log.action?.includes('REJECT') 
+                                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' 
+                                : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                            }`}>
+                              {log.action}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-400 max-w-xs truncate">
+                            {log.comments || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject Message Modal */}
       {rejectModalOpen && (

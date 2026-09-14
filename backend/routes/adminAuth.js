@@ -70,6 +70,8 @@ router.get('/users', async (req, res) => {
   }
 });
 
+    
+
 // Approve Hospital
 router.patch('/hospitals/:id/approve', async (req, res) => {
   const { id } = req.params;
@@ -84,6 +86,23 @@ router.patch('/hospitals/:id/approve', async (req, res) => {
       return res.status(404).json({ message: 'Hospital not found' });
     }
 
+    await logAudit(adminId, hospitalId, 'HOSPITAL', 'APPROVE_HOSPITAL', 'Licenses verified.');
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { 
+        name: "Health Access System", 
+        email: "ritushishir04@gmail.com" // Ensure this matches your configured Brevo sender/account email
+      },
+      to: [{ email: user.email }],
+      subject: 'Registration Status Update - National Health Access System',
+      htmlContent: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2>Registration Status Update</h2>
+          <p>Dear ${user.name},</p>
+          <p>Your user registration request has been approved.</p>
+          <p style="margin-top: 20px;">Regards,<br>You can login into your account.</p>
+        </div>
+      `
+    });
     res.json({
       message: 'Hospital approved successfully',
       hospital: updatedHospital.rows[0],
@@ -107,9 +126,25 @@ router.patch('/users/:id/approve', async (req, res) => {
     if (updatedUser.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
-
+    await logAudit(adminId, userId, 'USER', 'APPROVE_REGISTRATION', 'Verified.');
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { 
+        name: "Health Access System", 
+        email: "ritushishir04@gmail.com" // Ensure this matches your configured Brevo sender/account email
+      },
+      to: [{ email: user.email }],
+      subject: 'Registration Status Update - National Health Access System',
+      htmlContent: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2>Registration Status Update</h2>
+          <p>Dear ${user.name},</p>
+          <p>Your user registration request has been approved.</p>
+          <p style="margin-top: 20px;">Regards,<br>You can login into your account.</p>
+        </div>
+      `
+    });
     res.json({
-      message: 'User approved successfully',
+      message: 'User approved successfully and email sent',
       user: updatedUser.rows[0],
     });
   } catch (err) {
@@ -133,7 +168,7 @@ router.delete('/users/:id/reject', async (req, res) => {
 
     // 2. Delete user entirely from database
     await pool.query('DELETE FROM users WHERE id = $1', [id]);
-
+    await logAudit(adminId, userId, 'USER', 'REJECT_REGISTRATION', rejectionReason);
     // 3. Send rejection email via Brevo
     await brevo.transactionalEmails.sendTransacEmail({
       sender: { 
@@ -174,11 +209,11 @@ router.delete('/hospitals/:id/reject', async (req, res) => {
     const hospital = hospitalQuery.rows[0];
 
     await pool.query('DELETE FROM hospital_db WHERE hospital_id = $1', [id]);
-
+    await logAudit(adminId, hospitalId, 'HOSPITAL', 'REJECT_HOSPITAL', rejectionReason);
     await brevo.transactionalEmails.sendTransacEmail({
       sender: { 
         name: "Health Access System", 
-        email: process.env.EMAIL_USER 
+        email: "ritushishir04@gmail.com" 
       },
       to: [{ email: hospital.email }],
       subject: 'Hospital Registration Status Update - National Health Access System',
@@ -199,6 +234,32 @@ router.delete('/hospitals/:id/reject', async (req, res) => {
     console.error('Reject Hospital Error:', err);
     res.status(500).json({ message: 'Failed to reject and delete hospital', error: err.message });
   }
+});
+
+router.get('/audit-logs', async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                audit_logs.id,
+                audit_logs.created_at AS timestamp,
+                admins.username AS officer,
+                audit_logs.action,
+                audit_logs.target_type,
+                COALESCE(users.email, hospitals.name, 'Unknown Target') AS target_identifier,
+                audit_logs.comments
+            FROM audit_logs
+            JOIN admins ON audit_logs.admin_id = admins.id
+            LEFT JOIN users ON audit_logs.target_id = users.id AND audit_logs.target_type = 'USER'
+            LEFT JOIN hospitals ON audit_logs.target_id = hospitals.id AND audit_logs.target_type = 'HOSPITAL'
+            ORDER BY audit_logs.created_at DESC
+            LIMIT 100;
+        `;
+        const { rows } = await pool.query(query);
+        res.json(rows);
+    } catch (err) {
+        console.error('Failed to fetch audit logs:', err);
+        res.status(500).json({ error: 'Failed to retrieve audit logs.' });
+    }
 });
 
 router.post('/logout', (req, res) => {
