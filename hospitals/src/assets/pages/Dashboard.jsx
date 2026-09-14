@@ -95,15 +95,21 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    api.get('/me')
-      .then((res) => {
-        const userHospital = res.data.user;
-        setHospital(userHospital);
+  api.get('/me')
+    .then((res) => {
+      // Fallback if the backend sends res.data directly or nested under res.data.user
+      const userHospital = res.data.user || res.data;
+      setHospital(userHospital);
+      if (userHospital?.hospital_id) {
         fetchStructure(userHospital.hospital_id);
         fetchAppointments();
-      })
-      .catch(() => navigate('/'));
-  }, [navigate, fetchStructure, fetchAppointments]);
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to load /me profile", err);
+      navigate('/');
+    });
+}, [navigate, fetchStructure, fetchAppointments]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
