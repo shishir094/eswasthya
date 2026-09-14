@@ -230,6 +230,9 @@ router.post('/register', upload.single('document_url'), async (req, res) => {
       detail: error.detail // <-- This will show the exact Postgres crash reason
     });
   }
+});
+
+
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
