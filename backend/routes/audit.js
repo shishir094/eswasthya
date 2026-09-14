@@ -1,4 +1,4 @@
-import pool from '../config/db';
+import pool from '../config/db.js';
 
 /**
  * Helper to write entries to the audit_logs table for any target entity
