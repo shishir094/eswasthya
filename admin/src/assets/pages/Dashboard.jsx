@@ -19,11 +19,16 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProvince, setSelectedProvince] = useState('All');
   const [selectedDistrict, setSelectedDistrict] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'pending' | 'approved'
+  const [statusFilter, setStatusFilter] = useState('all');
 
   // Modal State for Image Preview
   const [previewImage, setPreviewImage] = useState(null);
   const [previewTitle, setPreviewTitle] = useState('');
+
+  // Reject Modal State
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState(null); // { id, type: 'user' | 'hospital', name }
+  const [rejectMessage, setRejectMessage] = useState('');
 
   const fetchAllData = useCallback(async () => {
     setLoading(true);
@@ -56,7 +61,6 @@ const Dashboard = () => {
     }
   };
 
-  // Helper: Check approval status
   const checkIsApproved = (item) => {
     if (!item) return false;
     const val = item.is_approved !== undefined ? item.is_approved : item.isApproved;
@@ -67,7 +71,6 @@ const Dashboard = () => {
     return false;
   };
 
-  // Helper: Extract dynamic primary keys
   const getItemId = (item, type = 'user') => {
     if (!item) return null;
     if (type === 'hospital') {
@@ -76,13 +79,11 @@ const Dashboard = () => {
     return item.user_id || item.userId || item._id || item.id;
   };
 
-  // Helper: Clean image path or base64 data to ensure it renders correctly
   const formatImageUrl = (url) => {
     if (!url || typeof url !== 'string') return '';
     const trimmed = url.trim();
     if (trimmed === '') return '';
 
-    // If it's already a full HTTP URL, data URI, or blob URL, return as-is
     if (
       trimmed.startsWith('http://') ||
       trimmed.startsWith('https://') ||
@@ -92,21 +93,16 @@ const Dashboard = () => {
       return trimmed;
     }
 
-    // If the database stores it as base64 string without the prefix, prepend data URI scheme
-    // (Adjust image/jpeg or image/png based on your upload type if needed)
     if (!trimmed.startsWith('/') && !trimmed.includes('://')) {
-      // Check if it looks like raw base64 data
       if (trimmed.length > 100 && !trimmed.includes(' ')) {
         return `data:image/jpeg;base64,${trimmed}`;
       }
     }
 
-    // If it's a relative path starting with / or uploads/, prepend the backend base URL origin
     const backendOrigin = API_BASE_URL.replace('/api', '');
     return `${backendOrigin}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
   };
 
-  // Dynamic dropdown lists derived from dataset
   const activeDataset = activeTab === 'users' ? users : hospitals;
 
   const availableProvinces = useMemo(() => {
@@ -126,7 +122,6 @@ const Dashboard = () => {
     return ['All', ...Array.from(new Set(districts))];
   }, [activeDataset, selectedProvince]);
 
-  // Reset dependent filters when switching main tabs
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setSearchQuery('');
@@ -135,25 +130,22 @@ const Dashboard = () => {
     setStatusFilter('all');
   };
 
-  // Filter implementation
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
       const isApproved = checkIsApproved(u);
       if (statusFilter === 'pending' && isApproved) return false;
       if (statusFilter === 'approved' && !isApproved) return false;
-
       if (selectedProvince !== 'All' && u.province !== selectedProvince) return false;
       if (selectedDistrict !== 'All' && u.district !== selectedDistrict) return false;
 
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase();
-        const name = (u.name || '').toLowerCase();
-        const email = (u.email || '').toLowerCase();
-        const citizenship = (u.citizenship || '').toLowerCase();
-        const id = String(getItemId(u, 'user') || '').toLowerCase();
-        return name.includes(q) || email.includes(q) || citizenship.includes(q) || id.includes(q);
+        return (
+          (u.name || '').toLowerCase().includes(q) ||
+          (u.email || '').toLowerCase().includes(q) ||
+          String(getItemId(u, 'user') || '').toLowerCase().includes(q)
+        );
       }
-
       return true;
     });
   }, [users, searchQuery, selectedProvince, selectedDistrict, statusFilter]);
@@ -163,47 +155,28 @@ const Dashboard = () => {
       const isApproved = checkIsApproved(h);
       if (statusFilter === 'pending' && isApproved) return false;
       if (statusFilter === 'approved' && !isApproved) return false;
-
       if (selectedProvince !== 'All' && h.province !== selectedProvince) return false;
       if (selectedDistrict !== 'All' && h.district !== selectedDistrict) return false;
 
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase();
-        const name = (h.name || '').toLowerCase();
-        const email = (h.email || '').toLowerCase();
-        const phone = (h.phone || '').toLowerCase();
-        const type = (h.hospital_type || '').toLowerCase();
-        const id = String(getItemId(h, 'hospital') || '').toLowerCase();
         return (
-          name.includes(q) ||
-          email.includes(q) ||
-          phone.includes(q) ||
-          type.includes(q) ||
-          id.includes(q)
+          (h.name || '').toLowerCase().includes(q) ||
+          (h.email || '').toLowerCase().includes(q) ||
+          String(getItemId(h, 'hospital') || '').toLowerCase().includes(q)
         );
       }
-
       return true;
     });
   }, [hospitals, searchQuery, selectedProvince, selectedDistrict, statusFilter]);
 
-  // User Approval Handler
   const handleApproveUser = async (userId) => {
     if (!userId) return alert('Invalid User ID');
     setActionLoading(`user-${userId}`);
     try {
-      await axios.patch(
-        `${API_BASE_URL}/admin/users/${userId}/approve`,
-        {},
-        { withCredentials: true }
-      );
-
+      await axios.patch(`${API_BASE_URL}/admin/users/${userId}/approve`, {}, { withCredentials: true });
       setUsers((prev) =>
-        prev.map((u) => {
-          return getItemId(u, 'user') === userId
-            ? { ...u, is_approved: 1, isApproved: true, status: 'approved' }
-            : u;
-        })
+        prev.map((u) => (getItemId(u, 'user') === userId ? { ...u, is_approved: 1, isApproved: true, status: 'approved' } : u))
       );
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to approve user.');
@@ -212,23 +185,13 @@ const Dashboard = () => {
     }
   };
 
-  // Hospital Approval Handler
   const handleApproveHospital = async (hospitalId) => {
     if (!hospitalId) return alert('Invalid Hospital ID');
     setActionLoading(`hosp-${hospitalId}`);
     try {
-      await axios.patch(
-        `${API_BASE_URL}/hospitals/${hospitalId}/approve`,
-        {},
-        { withCredentials: true }
-      );
-
+      await axios.patch(`${API_BASE_URL}/hospitals/${hospitalId}/approve`, {}, { withCredentials: true });
       setHospitals((prev) =>
-        prev.map((h) => {
-          return getItemId(h, 'hospital') === hospitalId
-            ? { ...h, is_approved: 1, isApproved: true, status: 'approved' }
-            : h;
-        })
+        prev.map((h) => (getItemId(h, 'hospital') === hospitalId ? { ...h, is_approved: 1, isApproved: true, status: 'approved' } : h))
       );
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to approve hospital.');
@@ -237,7 +200,46 @@ const Dashboard = () => {
     }
   };
 
-  // Global Metrics
+  // Open Rejection Modal
+  const openRejectModal = (item, type) => {
+    const id = getItemId(item, type);
+    setRejectTarget({ id, type, name: item.name });
+    setRejectMessage('');
+    setRejectModalOpen(true);
+  };
+
+  // Submit Rejection and Delete Record
+  const handleConfirmReject = async () => {
+    if (!rejectTarget) return;
+    const { id, type } = rejectTarget;
+    setActionLoading(`reject-${type}-${id}`);
+
+    try {
+      const endpoint =
+        type === 'user'
+          ? `${API_BASE_URL}/admin/users/${id}/reject`
+          : `${API_BASE_URL}/admin/hospitals/${id}/reject`;
+
+      await axios.delete(endpoint, {
+        data: { message: rejectMessage || 'Your registration request was rejected by the admin.' },
+        withCredentials: true,
+      });
+
+      if (type === 'user') {
+        setUsers((prev) => prev.filter((u) => getItemId(u, 'user') !== id));
+      } else {
+        setHospitals((prev) => prev.filter((h) => getItemId(h, 'hospital') !== id));
+      }
+
+      setRejectModalOpen(false);
+      setRejectTarget(null);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to reject and delete record.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const verifiedUsers = users.filter(checkIsApproved).length;
   const pendingUsers = users.length - verifiedUsers;
   const verifiedHospitals = hospitals.filter(checkIsApproved).length;
@@ -255,10 +257,7 @@ const Dashboard = () => {
     return (
       <div className="p-6 bg-slate-900 min-h-screen text-rose-400 flex flex-col items-center justify-center space-y-4">
         <p className="text-sm">{error}</p>
-        <button
-          onClick={fetchAllData}
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition"
-        >
+        <button onClick={fetchAllData} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition">
           Retry
         </button>
       </div>
@@ -268,22 +267,17 @@ const Dashboard = () => {
   return (
     <div className="p-6 bg-slate-900 min-h-screen text-slate-100">
       <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* Header */}
         <header className="flex justify-between items-center border-b border-slate-800 pb-4">
           <div>
             <h1 className="text-xl font-bold">Admin Portal</h1>
             <p className="text-xs text-slate-400">Manage user and hospital verification requests</p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="cursor-pointer px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition"
-          >
+          <button onClick={handleLogout} className="cursor-pointer px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition">
             Logout
           </button>
         </header>
 
-        {/* Summary Metrics */}
+        {/* Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl">
             <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Pending Users</p>
@@ -303,87 +297,37 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Tab Switcher */}
+        {/* Tabs */}
         <div className="flex border-b border-slate-800 space-x-4">
-          <button
-            onClick={() => handleTabChange('users')}
-            className={`pb-3 text-xs font-semibold cursor-pointer border-b-2 transition ${
-              activeTab === 'users'
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
+          <button onClick={() => handleTabChange('users')} className={`pb-3 text-xs font-semibold cursor-pointer border-b-2 transition ${activeTab === 'users' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
             Users Directory ({users.length})
           </button>
-          <button
-            onClick={() => handleTabChange('hospitals')}
-            className={`pb-3 text-xs font-semibold cursor-pointer border-b-2 transition ${
-              activeTab === 'hospitals'
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
+          <button onClick={() => handleTabChange('hospitals')} className={`pb-3 text-xs font-semibold cursor-pointer border-b-2 transition ${activeTab === 'hospitals' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
             Hospitals Directory ({hospitals.length})
           </button>
         </div>
 
-        {/* Interactive Search & Filter Controls */}
+        {/* Filters */}
         <div className="bg-slate-800/40 border border-slate-700/50 p-4 rounded-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-          {/* Search Box */}
           <div className="flex flex-col space-y-1">
             <label className="text-slate-400 font-medium">Search</label>
-            <input
-              type="text"
-              placeholder={activeTab === 'users' ? "Search name, email, ID..." : "Search hospital, contact..."}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
-            />
+            <input type="text" placeholder="Search name, email..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500" />
           </div>
-
-          {/* Province Filter */}
           <div className="flex flex-col space-y-1">
             <label className="text-slate-400 font-medium">Province</label>
-            <select
-              value={selectedProvince}
-              onChange={(e) => {
-                setSelectedProvince(e.target.value);
-                setSelectedDistrict('All');
-              }}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
-            >
-              {availableProvinces.map((prov) => (
-                <option key={prov} value={prov}>
-                  {prov}
-                </option>
-              ))}
+            <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedDistrict('All'); }} className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+              {availableProvinces.map((prov) => (<option key={prov} value={prov}>{prov}</option>))}
             </select>
           </div>
-
-          {/* District Filter */}
           <div className="flex flex-col space-y-1">
             <label className="text-slate-400 font-medium">District</label>
-            <select
-              value={selectedDistrict}
-              onChange={(e) => setSelectedDistrict(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
-            >
-              {availableDistricts.map((dist) => (
-                <option key={dist} value={dist}>
-                  {dist}
-                </option>
-              ))}
+            <select value={selectedDistrict} onChange={(e) => setSelectedDistrict(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+              {availableDistricts.map((dist) => (<option key={dist} value={dist}>{dist}</option>))}
             </select>
           </div>
-
-          {/* Status Filter */}
           <div className="flex flex-col space-y-1">
             <label className="text-slate-400 font-medium">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
-            >
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
               <option value="all">All Records</option>
               <option value="pending">Pending Only</option>
               <option value="approved">Approved Only</option>
@@ -391,7 +335,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Tab Content: Users */}
+        {/* Users Table */}
         {activeTab === 'users' && (
           <div className="overflow-x-auto bg-slate-800/60 border border-slate-700/60 rounded-2xl shadow-xl">
             <table className="w-full text-left border-collapse text-xs">
@@ -400,19 +344,15 @@ const Dashboard = () => {
                   <th className="p-4">ID</th>
                   <th className="p-4">Name</th>
                   <th className="p-4">Email</th>
-                  <th className="p-4">District / Province</th>
-                  <th className="p-4">Citizenship Document</th>
+                  <th className="p-4">Location</th>
+                  <th className="p-4">Document</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
                 {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="p-6 text-center text-slate-400">
-                      No matching users found.
-                    </td>
-                  </tr>
+                  <tr><td colSpan="7" className="p-6 text-center text-slate-400">No matching users found.</td></tr>
                 ) : (
                   filteredUsers.map((user, index) => {
                     const userId = getItemId(user, 'user');
@@ -425,47 +365,31 @@ const Dashboard = () => {
                         <td className="p-4 font-mono text-slate-400">#{userId || 'N/A'}</td>
                         <td className="p-4 font-medium text-white">{user.name || 'N/A'}</td>
                         <td className="p-4 text-slate-300">{user.email || 'N/A'}</td>
-                        <td className="p-4 text-slate-400">
-                          {user.district || 'N/A'}, {user.province || 'N/A'}
-                        </td>
+                        <td className="p-4 text-slate-400">{user.district || 'N/A'}, {user.province || 'N/A'}</td>
                         <td className="p-4">
                           {citizenshipUrl ? (
-                            <button
-                              onClick={() => {
-                                setPreviewImage(citizenshipUrl);
-                                setPreviewTitle(`Citizenship Document - ${user.name || 'User'}`);
-                              }}
-                              className="text-blue-400 hover:text-blue-300 underline font-medium cursor-pointer"
-                            >
+                            <button onClick={() => { setPreviewImage(citizenshipUrl); setPreviewTitle(`Citizenship Document - ${user.name}`); }} className="text-blue-400 hover:text-blue-300 underline font-medium cursor-pointer">
                               View Document
                             </button>
-                          ) : (
-                            <span className="text-slate-500 italic">Not Provided</span>
-                          )}
+                          ) : (<span className="text-slate-500 italic">Not Provided</span>)}
                         </td>
                         <td className="p-4">
-                          {isApproved ? (
-                            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-semibold text-[10px]">
-                              Approved
-                            </span>
-                          ) : (
-                            <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full font-semibold text-[10px]">
-                              Pending
-                            </span>
-                          )}
+                          <span className={`px-2.5 py-1 rounded-full font-semibold text-[10px] ${isApproved ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                            {isApproved ? 'Approved' : 'Pending'}
+                          </span>
                         </td>
-                        <td className="p-4 text-right">
-                          {!isApproved ? (
-                            <button
-                              onClick={() => handleApproveUser(userId)}
-                              disabled={isUpdating || !userId}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white rounded-lg font-semibold transition cursor-pointer"
-                            >
-                              {isUpdating ? 'Approving...' : 'Approve User'}
-                            </button>
-                          ) : (
-                            <span className="text-slate-500 italic text-[11px]">Verified</span>
+                        <td className="p-4 text-right space-x-2">
+                          {!isApproved && (
+                            <>
+                              <button onClick={() => handleApproveUser(userId)} disabled={isUpdating} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition cursor-pointer">
+                                Approve
+                              </button>
+                              <button onClick={() => openRejectModal(user, 'user')} className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-semibold transition cursor-pointer">
+                                Reject
+                              </button>
+                            </>
                           )}
+                          {isApproved && <span className="text-slate-500 italic text-[11px]">Verified</span>}
                         </td>
                       </tr>
                     );
@@ -476,7 +400,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Tab Content: Hospitals */}
+        {/* Hospitals Table */}
         {activeTab === 'hospitals' && (
           <div className="overflow-x-auto bg-slate-800/60 border border-slate-700/60 rounded-2xl shadow-xl">
             <table className="w-full text-left border-collapse text-xs">
@@ -486,18 +410,14 @@ const Dashboard = () => {
                   <th className="p-4">Hospital Name</th>
                   <th className="p-4">Type</th>
                   <th className="p-4">Location</th>
-                  <th className="p-4">Registration Certificate</th>
+                  <th className="p-4">Certificate</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
                 {filteredHospitals.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="p-6 text-center text-slate-400">
-                      No matching hospitals found.
-                    </td>
-                  </tr>
+                  <tr><td colSpan="7" className="p-6 text-center text-slate-400">No matching hospitals found.</td></tr>
                 ) : (
                   filteredHospitals.map((hospital, index) => {
                     const hospId = getItemId(hospital, 'hospital');
@@ -510,47 +430,31 @@ const Dashboard = () => {
                         <td className="p-4 font-mono text-slate-400">#{hospId || 'N/A'}</td>
                         <td className="p-4 font-medium text-white">{hospital.name || 'N/A'}</td>
                         <td className="p-4 text-slate-300">{hospital.hospital_type || 'General'}</td>
-                        <td className="p-4 text-slate-400">
-                          {hospital.district || 'N/A'}, {hospital.province || 'N/A'}
-                        </td>
+                        <td className="p-4 text-slate-400">{hospital.district || 'N/A'}, {hospital.province || 'N/A'}</td>
                         <td className="p-4">
                           {certUrl ? (
-                            <button
-                              onClick={() => {
-                                setPreviewImage(certUrl);
-                                setPreviewTitle(`Registration Certificate - ${hospital.name || 'Hospital'}`);
-                              }}
-                              className="text-blue-400 hover:text-blue-300 underline font-medium cursor-pointer"
-                            >
+                            <button onClick={() => { setPreviewImage(certUrl); setPreviewTitle(`Certificate - ${hospital.name}`); }} className="text-blue-400 hover:text-blue-300 underline font-medium cursor-pointer">
                               View Certificate
                             </button>
-                          ) : (
-                            <span className="text-slate-500 italic">Not Provided</span>
-                          )}
+                          ) : (<span className="text-slate-500 italic">Not Provided</span>)}
                         </td>
                         <td className="p-4">
-                          {isApproved ? (
-                            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-semibold text-[10px]">
-                              Approved
-                            </span>
-                          ) : (
-                            <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full font-semibold text-[10px]">
-                              Pending
-                            </span>
-                          )}
+                          <span className={`px-2.5 py-1 rounded-full font-semibold text-[10px] ${isApproved ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                            {isApproved ? 'Approved' : 'Pending'}
+                          </span>
                         </td>
-                        <td className="p-4 text-right">
-                          {!isApproved ? (
-                            <button
-                              onClick={() => handleApproveHospital(hospId)}
-                              disabled={isUpdating || !hospId}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white rounded-lg font-semibold transition cursor-pointer"
-                            >
-                              {isUpdating ? 'Approving...' : 'Approve Hospital'}
-                            </button>
-                          ) : (
-                            <span className="text-slate-500 italic text-[11px]">Verified</span>
+                        <td className="p-4 text-right space-x-2">
+                          {!isApproved && (
+                            <>
+                              <button onClick={() => handleApproveHospital(hospId)} disabled={isUpdating} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition cursor-pointer">
+                                Approve
+                              </button>
+                              <button onClick={() => openRejectModal(hospital, 'hospital')} className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-semibold transition cursor-pointer">
+                                Reject
+                              </button>
+                            </>
                           )}
+                          {isApproved && <span className="text-slate-500 italic text-[11px]">Verified</span>}
                         </td>
                       </tr>
                     );
@@ -560,8 +464,42 @@ const Dashboard = () => {
             </table>
           </div>
         )}
-
       </div>
+
+      {/* Reject Message Modal */}
+      {rejectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-semibold text-rose-400">
+              Reject Registration: {rejectTarget?.name}
+            </h3>
+            <p className="text-xs text-slate-400">
+              Provide a reason for rejection. This message will be emailed to the applicant, and their data will be permanently deleted from the database.
+            </p>
+            <textarea
+              rows={4}
+              value={rejectMessage}
+              onChange={(e) => setRejectMessage(e.target.value)}
+              placeholder="Type rejection reason here..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-rose-500"
+            />
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                onClick={() => setRejectModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmReject}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-lg transition"
+              >
+                Send & Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Image Preview Modal */}
       {previewImage && (
@@ -569,38 +507,16 @@ const Dashboard = () => {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="flex justify-between items-center px-5 py-4 border-b border-slate-800 bg-slate-900/90">
               <h3 className="text-sm font-semibold text-slate-200">{previewTitle}</h3>
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer"
-              >
+              <button onClick={() => setPreviewImage(null)} className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer">
                 ✕
               </button>
             </div>
             <div className="p-6 overflow-auto flex items-center justify-center bg-slate-950/60 flex-grow">
-              {previewImage.includes('.pdf') ? (
-                <div className="flex flex-col items-center space-y-4 py-10">
-                  <p className="text-slate-300 text-xs">This document is a PDF format file.</p>
-                  <a
-                    href={previewImage}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition"
-                  >
-                    Open PDF in New Tab
-                  </a>
-                </div>
-              ) : (
-                <img
-                  src={previewImage}
-                  alt="Document Preview"
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg border border-slate-800 shadow-md"
-                />
-              )}
+              <img src={previewImage} alt="Document Preview" className="max-w-full max-h-[70vh] object-contain rounded-lg border border-slate-800 shadow-md" />
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 };

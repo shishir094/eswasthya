@@ -128,6 +128,10 @@ const Dashboard = () => {
 
   const handleAddDepartment = async (e) => {
     e.preventDefault();
+    if (!hospital?.is_approved) {
+      setFeedback({ type: 'error', message: 'Account pending approval. You cannot add departments yet.' });
+      return;
+    }
     if (!deptName.trim()) return;
     setIsSubmitting(true);
     setFeedback({ type: '', message: '' });
@@ -148,6 +152,10 @@ const Dashboard = () => {
 
   const handleAddDoctor = async (e) => {
     e.preventDefault();
+    if (!hospital?.is_approved) {
+      setFeedback({ type: 'error', message: 'Account pending approval. You cannot register doctors yet.' });
+      return;
+    }
     if (!docDeptId || !docName.trim()) return;
     setIsSubmitting(true);
     setFeedback({ type: '', message: '' });
@@ -199,7 +207,6 @@ const Dashboard = () => {
     [paidAppointments]
   );
 
-  // FIX: Robust check for department patient counts across different payload keys
   const getPatientCountForDept = (deptNameToCheck) => {
     if (!deptNameToCheck) return 0;
     return appointments.filter((app) => {
@@ -258,6 +265,8 @@ const Dashboard = () => {
     );
   }
 
+  const isApproved = hospital.is_approved === true || hospital.is_approved === 1 || hospital.status === 'approved';
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -277,6 +286,14 @@ const Dashboard = () => {
           </div>
         )}
 
+        {/* NOTIFICATION BANNER IF NOT APPROVED */}
+        {!isApproved && (
+          <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between text-xs text-amber-300 font-semibold">
+            <span>⚠️ Your hospital account is currently pending administrative verification and approval. Adding departments and doctors is restricted until approved.</span>
+            <span className="px-2.5 py-1 bg-amber-500/20 rounded-lg uppercase tracking-wider font-extrabold text-[10px]">Pending Review</span>
+          </div>
+        )}
+
         {/* HEADER BAR */}
         <header className="bg-slate-800 p-6 md:p-8 rounded-3xl border border-slate-700/80 shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center space-x-4">
@@ -284,12 +301,19 @@ const Dashboard = () => {
               {hospital.name ? hospital.name.charAt(0).toUpperCase() : 'H'}
             </div>
             <div>
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 flex-wrap gap-2">
                 <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
                   {hospital.name}
                 </h1>
                 <span className="px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   HOSPITAL ADMIN
+                </span>
+                <span className={`px-3 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                  isApproved 
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}>
+                  {isApproved ? 'APPROVED' : 'PENDING APPROVAL'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-3">
@@ -495,61 +519,67 @@ const Dashboard = () => {
                   Add New Department
                 </h2>
 
-                <form onSubmit={handleAddDepartment} className="space-y-4 text-xs">
-                  <div>
-                    <label className="block text-slate-400 font-semibold mb-1">
-                      Quick Select Standard Department
-                    </label>
-                    <select
-                      value={selectedPredefinedDept}
-                      onChange={handlePredefinedDeptChange}
-                      className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
+                {!isApproved ? (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                    Account approval is required before adding departments.
+                  </div>
+                ) : (
+                  <form onSubmit={handleAddDepartment} className="space-y-4 text-xs">
+                    <div>
+                      <label className="block text-slate-400 font-semibold mb-1">
+                        Quick Select Standard Department
+                      </label>
+                      <select
+                        value={selectedPredefinedDept}
+                        onChange={handlePredefinedDeptChange}
+                        className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="">-- Choose standard department or custom --</option>
+                        {PREDEFINED_DEPARTMENTS.map((dept, idx) => (
+                          <option key={idx} value={dept.name}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-slate-400 font-semibold mb-1">
+                          Department Name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Cardiology"
+                          required
+                          value={deptName}
+                          onChange={(e) => setDeptName(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-semibold mb-1">
+                          Overview / Specialization Notes
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Short overview"
+                          value={deptDesc}
+                          onChange={(e) => setDeptDesc(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 text-slate-950 font-extrabold px-6 py-3 rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer"
                     >
-                      <option value="">-- Choose standard department or custom --</option>
-                      {PREDEFINED_DEPARTMENTS.map((dept, idx) => (
-                        <option key={idx} value={dept.name}>
-                          {dept.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-400 font-semibold mb-1">
-                        Department Name
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Cardiology"
-                        required
-                        value={deptName}
-                        onChange={(e) => setDeptName(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 font-semibold mb-1">
-                        Overview / Specialization Notes
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Short overview"
-                        value={deptDesc}
-                        onChange={(e) => setDeptDesc(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 text-slate-950 font-extrabold px-6 py-3 rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer"
-                  >
-                    {isSubmitting ? 'Saving...' : 'Save Department'}
-                  </button>
-                </form>
+                      {isSubmitting ? 'Saving...' : 'Save Department'}
+                    </button>
+                  </form>
+                )}
               </div>
 
               {/* Active Departments Display */}
@@ -611,43 +641,49 @@ const Dashboard = () => {
                   Register Doctor to Department
                 </h2>
 
-                <form onSubmit={handleAddDoctor} className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-                  <select
-                    required
-                    value={docDeptId}
-                    onChange={(e) => setDocDeptId(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map((d) => (
-                      <option key={d.department_id} value={d.department_id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    placeholder="Doctor Full Name"
-                    required
-                    value={docName}
-                    onChange={(e) => setDocName(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Specialization (e.g. Senior Surgeon)"
-                    value={docSpec}
-                    onChange={(e) => setDocSpec(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="bg-teal-500 hover:bg-teal-400 disabled:bg-slate-700 text-slate-950 font-extrabold px-4 py-3 rounded-xl shadow-lg shadow-teal-500/20 active:scale-95 transition cursor-pointer"
-                  >
-                    {isSubmitting ? 'Adding...' : 'Add Doctor'}
-                  </button>
-                </form>
+                {!isApproved ? (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                    Account approval is required before registering doctors.
+                  </div>
+                ) : (
+                  <form onSubmit={handleAddDoctor} className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                    <select
+                      required
+                      value={docDeptId}
+                      onChange={(e) => setDocDeptId(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map((d) => (
+                        <option key={d.department_id} value={d.department_id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Doctor Full Name"
+                      required
+                      value={docName}
+                      onChange={(e) => setDocName(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Specialization (e.g. Senior Surgeon)"
+                      value={docSpec}
+                      onChange={(e) => setDocSpec(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="bg-teal-500 hover:bg-teal-400 disabled:bg-slate-700 text-slate-950 font-extrabold px-4 py-3 rounded-xl shadow-lg shadow-teal-500/20 active:scale-95 transition cursor-pointer"
+                    >
+                      {isSubmitting ? 'Adding...' : 'Add Doctor'}
+                    </button>
+                  </form>
+                )}
               </div>
 
               {/* Roster & Doctors List */}
@@ -694,7 +730,6 @@ const Dashboard = () => {
                       >
                         <div className="flex justify-between items-start">
                           <h3 className="font-bold text-white text-sm">{doc.name}</h3>
-                          {/* FIX: Displaying the department name badge instead of duplicating doctor name */}
                           <span className="text-[10px] bg-teal-500/20 text-teal-300 font-bold px-2 py-0.5 rounded border border-teal-500/30">
                             {doc.department_name}
                           </span>
@@ -715,4 +750,5 @@ const Dashboard = () => {
   );
 };
 
+exports.Dashboard = Dashboard;
 export default Dashboard;

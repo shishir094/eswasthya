@@ -1,14 +1,20 @@
-import pool from '../config/db.js'; 
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import {protectAdmin} from '../middleware/adminAuth.js'
+import pool from '../config/db.js';
+import { BrevoClient } from '@getbrevo/brevo';
+
 const router = express.Router();
+
+const brevo = new BrevoClient({
+  apiKey: process.env.BREVO_API_KEY,
+});
 
 const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' || true,
-    secure: true,      // Required for HTTPS (Render)
+    secure: true,
     sameSite: 'none',
     maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
 };
@@ -18,12 +24,10 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Always fetch the single admin account from ID 1
     const result = await pool.query('SELECT * FROM admin WHERE id = 1');
     const admin = result.rows[0];
 
-    // Check both email and password against the single record
-    if (admin.email !== email) {
+    if (!admin || admin.email !== email) {
       return res.status(401).json({ message: 'Invalid admin credentials' });
     }
 
@@ -32,29 +36,24 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid admin credentials' });
     }
 
-    // Generate JWT token...
     const token = jwt.sign(
       { id: admin.id, role: 'super_admin', type: 'admin' },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
 
-    res.cookie('admin_token', token, { 
-      httpOnly: true,
-  secure: true,  
-  sameSite: 'none'
-     });
+    res.cookie('admin_token', token, cookieOptions);
     res.json({ message: 'Admin login successful' });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-//for getting users
+// Get users
 router.get('/users', async (req, res) => {
   try {
     const query = `
-      SELECT id, name, email, province, district, citizenship,image_url, created_at,is_approved,status 
+      SELECT id, name, email, province, district, citizenship, image_url, created_at, is_approved, status 
       FROM users 
       ORDER BY created_at DESC;
     `;
@@ -71,6 +70,7 @@ router.get('/users', async (req, res) => {
   }
 });
 
+// Approve user
 router.patch('/users/:id/approve', async (req, res) => {
   const { id } = req.params;
 
@@ -94,8 +94,92 @@ router.patch('/users/:id/approve', async (req, res) => {
   }
 });
 
+// Reject and Delete User (using Brevo)
+router.delete('/users/:id/reject', async (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body;
+
+  try {
+    // 1. Fetch user email before deleting
+    const userQuery = await pool.query('SELECT email, name FROM users WHERE id = $1', [id]);
+    if (userQuery.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const user = userQuery.rows[0];
+
+    // 2. Delete user entirely from database
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+
+    // 3. Send rejection email via Brevo
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { 
+        name: "Health Access System", 
+        email: process.env.EMAIL_USER // Ensure this matches your configured Brevo sender/account email
+      },
+      to: [{ email: user.email }],
+      subject: 'Registration Status Update - National Health Access System',
+      htmlContent: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2>Registration Status Update</h2>
+          <p>Dear ${user.name},</p>
+          <p>Your user registration request has been rejected.</p>
+          <p><strong>Reason / Message from Admin:</strong></p>
+          <p style="background: #f9fafb; padding: 12px; border-left: 4px solid #ef4444; border-radius: 4px;">${message}</p>
+          <p style="margin-top: 20px;">Regards,<br>Admin Team</p>
+        </div>
+      `
+    });
+
+    res.json({ success: true, message: 'User rejected, deleted, and notification email sent.' });
+  } catch (err) {
+    console.error('Reject User Error:', err);
+    res.status(500).json({ message: 'Failed to reject and delete user', error: err.message });
+  }
+});
+
+// Reject and Delete Hospital (using Brevo)
+router.delete('/hospitals/:id/reject', async (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body;
+
+  try {
+    const hospitalQuery = await pool.query('SELECT email, name FROM hospital_db WHERE hospital_id = $1', [id]);
+    if (hospitalQuery.rows.length === 0) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+    const hospital = hospitalQuery.rows[0];
+
+    await pool.query('DELETE FROM hospital_db WHERE hospital_id = $1', [id]);
+
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { 
+        name: "Health Access System", 
+        email: process.env.EMAIL_USER 
+      },
+      to: [{ email: hospital.email }],
+      subject: 'Hospital Registration Status Update - National Health Access System',
+      htmlContent: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2>Hospital Registration Status Update</h2>
+          <p>Dear ${hospital.name} Management,</p>
+          <p>Your hospital registration request has been rejected.</p>
+          <p><strong>Reason / Message from Admin:</strong></p>
+          <p style="background: #f9fafb; padding: 12px; border-left: 4px solid #ef4444; border-radius: 4px;">${message}</p>
+          <p style="margin-top: 20px;">Regards,<br>Admin Team</p>
+        </div>
+      `
+    });
+
+    res.json({ success: true, message: 'Hospital rejected, deleted, and notification email sent.' });
+  } catch (err) {
+    console.error('Reject Hospital Error:', err);
+    res.status(500).json({ message: 'Failed to reject and delete hospital', error: err.message });
+  }
+});
+
 router.post('/logout', (req, res) => {
     res.cookie('admin_token', '', { ...cookieOptions, maxAge: 1 });
     res.json({ message: 'logged out successfully' });
 });
+
 export default router;
