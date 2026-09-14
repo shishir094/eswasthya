@@ -72,6 +72,12 @@ const Dashboard = () => {
     notes: '',
   });
 
+  // Check if user is approved
+  const isApproved = useMemo(() => {
+    if (!user) return false;
+    return user.is_approved === true || user.is_approved === 1 || user.status === 'approved';
+  }, [user]);
+
   // Calculate available booking dates: Auto-releases today's slot after 5:00 PM (17:00)
   const getMinMaxDates = () => {
     const now = new Date();
@@ -234,14 +240,16 @@ const Dashboard = () => {
 
   // Filtered hospitals based on approval status AND selected location criteria
   const filteredHospitals = useMemo(() => {
+    if (!isApproved) return []; // Do not show any hospitals if user is not approved
     return approvedHospitals.filter((item) => {
       const matchesProvince = selectedProvince ? item.province === selectedProvince : true;
       const matchesDistrict = selectedDistrict ? item.district === selectedDistrict : true;
       return matchesProvince && matchesDistrict;
     });
-  }, [approvedHospitals, selectedProvince, selectedDistrict]);
+  }, [approvedHospitals, selectedProvince, selectedDistrict, isApproved]);
 
   const handleOpenModal = async (hospital) => {
+    if (!isApproved) return; // Prevent opening modal / booking if not approved
     setSelectedHospital(hospital);
     setBookingError('');
     setSlotCounts({});
@@ -300,6 +308,7 @@ const Dashboard = () => {
 
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
+    if (!isApproved) return; // Prevent payment submission if not approved
     setBookingError('');
 
     const phoneRegex = /^(?:\+977)?9[78]\d{8}$/;
@@ -357,12 +366,20 @@ const Dashboard = () => {
               {user?.name?.charAt(0) || user?.full_name?.charAt(0) || 'U'}
             </div>
             <div className="space-y-1">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-xl font-extrabold text-slate-900">
                   {user ? user.name || user.full_name || 'User Profile' : 'Loading Profile...'}
                 </h1>
                 <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100">
                   Patient Account
+                </span>
+                {/* Approval Status Badge */}
+                <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold border ${
+                  isApproved
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}>
+                  {isApproved ? 'Approved' : 'Status: Pending Approval'}
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-600 pt-1">
@@ -386,7 +403,22 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Navigation Tabs */}
+        {/* PENDING APPROVAL WARNING BANNER (If not approved) */}
+        {!isApproved && (
+          <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl space-y-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⏳</span>
+              <div>
+                <h2 className="text-sm font-bold text-amber-900">Account Pending Verification</h2>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Your account is currently awaiting administrator review and approval. Hospital browsing, appointment booking, and eSewa payments are temporarily restricted until your status is approved.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Tabs (Only fully functional if approved) */}
         <div className="flex gap-2 border-b border-slate-200 pb-3">
           <button
             onClick={() => setActiveTab('hospitals')}
@@ -417,134 +449,144 @@ const Dashboard = () => {
           </button>
         </div>
 
-        {/* TAB 1: Hospitals List with Location Filters & Approval check */}
+        {/* TAB 1: Hospitals List (Hidden / Restricted if not approved) */}
         {activeTab === 'hospitals' && (
           <div className="space-y-6">
-            {/* Filter Section */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
-              <div className="text-xs font-bold text-slate-700">
-                🔍 Filter Hospitals by Location:
-              </div>
-              <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-                <select
-                  value={selectedProvince}
-                  onChange={(e) => {
-                    setSelectedProvince(e.target.value);
-                    setSelectedDistrict(''); // Reset district when province changes
-                  }}
-                  className="bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-700 min-w-[160px]"
-                >
-                  <option value="">All Provinces</option>
-                  {provinces.map((prov) => (
-                    <option key={prov} value={prov}>{prov}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedDistrict}
-                  onChange={(e) => setSelectedDistrict(e.target.value)}
-                  className="bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-700 min-w-[160px]"
-                >
-                  <option value="">All Districts</option>
-                  {districts.map((dist) => (
-                    <option key={dist} value={dist}>{dist}</option>
-                  ))}
-                </select>
-
-                {(selectedProvince || selectedDistrict) && (
-                  <button
-                    onClick={() => {
-                      setSelectedProvince('');
-                      setSelectedDistrict('');
-                    }}
-                    className="px-3 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition cursor-pointer"
-                  >
-                    Clear Filters
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Hospital Grid */}
-            {filteredHospitals.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3 shadow-sm">
-                <p className="text-sm font-semibold text-slate-600">No approved hospitals found matching your location filters.</p>
-                <button
-                  onClick={() => {
-                    setSelectedProvince('');
-                    setSelectedDistrict('');
-                  }}
-                  className="text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
-                >
-                  Show all approved hospitals
-                </button>
+            {!isApproved ? (
+              <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-2 shadow-sm">
+                <p className="text-sm font-bold text-slate-700">Hospital listings are hidden while your account is pending approval.</p>
+                <p className="text-xs text-slate-500">Please check back once an administrator approves your account.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {filteredHospitals.map((item) => (
-                  <div
-                    key={item.hospital_id}
-                    className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between gap-4 hover:shadow-md transition"
-                  >
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start gap-2">
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900">{item.name}</h3>
-                          <p className="text-xs text-slate-500 font-medium">
-                            📍 {item.municipality}, {item.district}, {item.province}
-                          </p>
-                        </div>
-                        {item.hospital_type && (
-                          <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200">
-                            {item.hospital_type}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Complete Details Section */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        <div>📧 <strong>Email:</strong> {item.email || 'N/A'}</div>
-                        <div>📞 <strong>Phone:</strong> {item.phone || 'N/A'}</div>
-                        <div>🚨 <strong>Emergency:</strong> {item.emergency_contact || 'N/A'}</div>
-                        <div>🛏️ <strong>Beds:</strong> {item.hospital_bed_capacity || 'N/A'} Capacity</div>
-                      </div>
-
-                      {/* Available Departments List */}
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                          Available Departments:
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {item.departments && item.departments.length > 0 ? (
-                            item.departments.map((d) => (
-                              <span
-                                key={d.department_id}
-                                className="bg-indigo-50 text-indigo-700 font-bold text-[10px] px-2.5 py-1 rounded-lg border border-indigo-100"
-                              >
-                                {d.department_name}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-slate-400 font-italic">No departments listed</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleOpenModal(item)}
-                      className="w-full py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-xs font-bold transition cursor-pointer mt-2"
+              <>
+                {/* Filter Section */}
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
+                  <div className="text-xs font-bold text-slate-700">
+                    🔍 Filter Hospitals by Location:
+                  </div>
+                  <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+                    <select
+                      value={selectedProvince}
+                      onChange={(e) => {
+                        setSelectedProvince(e.target.value);
+                        setSelectedDistrict(''); // Reset district when province changes
+                      }}
+                      className="bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-700 min-w-[160px]"
                     >
-                      Book Appointment (NPR 500)
+                      <option value="">All Provinces</option>
+                      {provinces.map((prov) => (
+                        <option key={prov} value={prov}>{prov}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={selectedDistrict}
+                      onChange={(e) => setSelectedDistrict(e.target.value)}
+                      className="bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-700 min-w-[160px]"
+                    >
+                      <option value="">All Districts</option>
+                      {districts.map((dist) => (
+                        <option key={dist} value={dist}>{dist}</option>
+                      ))}
+                    </select>
+
+                    {(selectedProvince || selectedDistrict) && (
+                      <button
+                        onClick={() => {
+                          setSelectedProvince('');
+                          setSelectedDistrict('');
+                        }}
+                        className="px-3 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition cursor-pointer"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Hospital Grid */}
+                {filteredHospitals.length === 0 ? (
+                  <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3 shadow-sm">
+                    <p className="text-sm font-semibold text-slate-600">No approved hospitals found matching your location filters.</p>
+                    <button
+                      onClick={() => {
+                        setSelectedProvince('');
+                        setSelectedDistrict('');
+                      }}
+                      className="text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
+                    >
+                      Show all approved hospitals
                     </button>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {filteredHospitals.map((item) => (
+                      <div
+                        key={item.hospital_id}
+                        className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between gap-4 hover:shadow-md transition"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <h3 className="text-lg font-bold text-slate-900">{item.name}</h3>
+                              <p className="text-xs text-slate-500 font-medium">
+                                📍 {item.municipality}, {item.district}, {item.province}
+                              </p>
+                            </div>
+                            {item.hospital_type && (
+                              <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200">
+                                {item.hospital_type}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Complete Details Section */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div>📧 <strong>Email:</strong> {item.email || 'N/A'}</div>
+                            <div>📞 <strong>Phone:</strong> {item.phone || 'N/A'}</div>
+                            <div>🚨 <strong>Emergency:</strong> {item.emergency_contact || 'N/A'}</div>
+                            <div>🛏️ <strong>Beds:</strong> {item.hospital_bed_capacity || 'N/A'} Capacity</div>
+                          </div>
+
+                          {/* Available Departments List */}
+                          <div>
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                              Available Departments:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {item.departments && item.departments.length > 0 ? (
+                                item.departments.map((d) => (
+                                  <span
+                                    key={d.department_id}
+                                    className="bg-indigo-50 text-indigo-700 font-bold text-[10px] px-2.5 py-1 rounded-lg border border-indigo-100"
+                                  >
+                                    {d.department_name}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs text-slate-400 font-italic">No departments listed</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleOpenModal(item)}
+                          disabled={!isApproved}
+                          className="w-full py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-xs font-bold transition cursor-pointer mt-2 disabled:opacity-50"
+                        >
+                          Book Appointment (NPR 500)
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
 
-        {/* TAB 2: User Appointments Dashboard (With AM/PM Time Formatting) */}
+        {/* TAB 2: User Appointments Dashboard */}
         {activeTab === 'appointments' && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h2 className="text-base font-bold text-slate-900">My Paid Appointments</h2>
@@ -556,12 +598,14 @@ const Dashboard = () => {
                 <p className="text-xs text-slate-500 font-medium">
                   No active or upcoming appointments found.
                 </p>
-                <button
-                  onClick={() => setActiveTab('hospitals')}
-                  className="text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
-                >
-                  Browse hospitals & schedule a booking
-                </button>
+                {isApproved && (
+                  <button
+                    onClick={() => setActiveTab('hospitals')}
+                    className="text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Browse hospitals & schedule a booking
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -609,8 +653,8 @@ const Dashboard = () => {
 
       </div>
 
-      {/* Booking Modal */}
-      {selectedHospital && (
+      {/* Booking Modal (Only opens if approved) */}
+      {selectedHospital && isApproved && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
             <h3 className="text-base font-bold text-slate-900">

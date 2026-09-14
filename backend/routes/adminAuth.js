@@ -138,7 +138,7 @@ router.delete('/users/:id/reject', async (req, res) => {
     await brevo.transactionalEmails.sendTransacEmail({
       sender: { 
         name: "Health Access System", 
-        email: process.env.EMAIL_USER // Ensure this matches your configured Brevo sender/account email
+        email: "ritushishir04@gmail.com" // Ensure this matches your configured Brevo sender/account email
       },
       to: [{ email: user.email }],
       subject: 'Registration Status Update - National Health Access System',
