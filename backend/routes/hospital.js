@@ -283,6 +283,9 @@ router.get('/me', verifyHospital, async (req, res) => {
 
 router.post('/logout', (req, res) => {
   res.cookie('hospital_token', '', { ...cookieOptions, maxAge: 1 });
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
   return res.json({ message: 'logged out successfully' });
 });
 

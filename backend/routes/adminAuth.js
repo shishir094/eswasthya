@@ -303,6 +303,9 @@ router.get('/audit-logs', async (req, res) => {
 // Admin Logout
 router.post('/logout', (req, res) => {
     res.cookie('admin_token', '', { ...cookieOptions, maxAge: 1 });
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.json({ message: 'logged out successfully' });
 });
 
