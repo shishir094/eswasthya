@@ -20,7 +20,7 @@ const AdminLogin = () => {
     axios.post('https://health-access-system-2.onrender.com/api/admin/login', credentials, { withCredentials: true })
       .then((response) => {
         alert("Login successful!");
-        navigate('/admin/dashboard');
+        navigate('/admin/dashboard',{replace:true});
       })
       .catch((error) => {
         alert(error.response?.data?.message || 'Invalid email or password.');

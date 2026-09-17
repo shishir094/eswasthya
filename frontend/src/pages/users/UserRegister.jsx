@@ -141,7 +141,7 @@ const UserRegister = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       alert(response.data?.message || 'Registration successful!');
-      navigate('/');
+      navigate('/user/login');
     } catch (error) {
       alert(error.response?.data?.message || 'Registration failed.');
     } finally {

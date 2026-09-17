@@ -352,7 +352,7 @@ const UserDashboard = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
-    navigate('/login',{replace:true});
+    navigate('/user/login',{replace:true});
   };
 
   return (
