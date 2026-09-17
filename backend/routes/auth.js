@@ -202,7 +202,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', protect, async (req, res) => {
   try {
     const userQuery = await pool.query(
-      'SELECT id, name, email, province, district, citizenship, image_url, created_at FROM users WHERE id = $1',
+      'SELECT id, name, email, province, district, citizenship, image_url,is_approved, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
     if (userQuery.rows.length === 0) {
