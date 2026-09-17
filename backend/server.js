@@ -11,10 +11,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://has-users.vercel.app',
-    'https://has-hospital.vercel.app',
-    'https://has-admin.vercel.app',
-],
+  origin: ['https://eswasthya.vercel.app',],
   credentials: true
 }));
 
@@ -22,7 +19,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.get("/",(req,res)=>{
-    res.send("hello");
+    res.send("this is eswasthya backend service running");
 })
 app.use("/api/auth",authRoutes);
 app.use('/api/admin', adminAuthRoutes);
