@@ -86,7 +86,7 @@ const HospitalLogin = () => {
           </button>
           <p className="text-center text-sm text-slate-500 mt-4">
             Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:underline font-semibold">
+            <Link to="/hospital/register" className="text-blue-600 hover:underline font-semibold">
               Register here
             </Link>
           </p>
